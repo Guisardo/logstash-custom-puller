@@ -10,6 +10,7 @@ import os
 from hashlib import md5
 
 logstashpath = os.environ['DEST_PATH']
+serciceenc = os.environ['SRV_ENCODE']
 serviceprefix = os.environ['SRV_PREFIX']
 service = "modifiedsince.aspx?f=%s&e=%s&d=%s"
 expression = os.environ['SRV_FILTER']
@@ -56,9 +57,10 @@ import re
 valid = re.compile(r"^(?:\s+|)<\?xml.+>(?:\s+|)$", re.DOTALL)
 @scached(cache_file='lastfiles.db', expiry=datetime.timedelta(minutes=60))
 def getFile(filePath, since):
-    reader = codecs.getreader("latin_1")
+    reader = codecs.getreader("utf8")
     req = urllib.request.urlopen(filePath)
-    uencodeddata = req.read().decode('latin_1')
+    uencodeddata = req.read()
+    uencodeddata = uencodeddata.decode(serciceenc).replace("<?xml version='1.0' encoding='ISO-8859-1'?>", "<?xml version='1.0' encoding='UTF-8'?>")
     encodeddata = uencodeddata
     #print (encodeddata)
     if valid.match(encodeddata) is None:
@@ -68,46 +70,46 @@ def getFile(filePath, since):
 cache = shelve.open('puller.cache')
 
 while True:
-    try:
-        if 'since' in cache:
-            since = cache['since']
+    #try:
+    if 'since' in cache:
+        since = cache['since']
 
-        if 'retry' in cache:
-            retry = cache['retry']
+    if 'retry' in cache:
+        retry = cache['retry']
 
-        #print url.encode('utf-8')
-        timedservice = serviceurl % since
-        print(timedservice)
-        reader = codecs.getreader("utf-8")
-        req = urllib.request.urlopen(timedservice)
-        data = json.load(reader(req))
+    #print url.encode('utf-8')
+    timedservice = serviceurl % since
+    print(timedservice)
+    reader = codecs.getreader("utf-8")
+    req = urllib.request.urlopen(timedservice)
+    data = json.load(reader(req))
 
-        print(data["filter"])
-        print(data["timestamp"])
-        data["files"].extend(retry)
-        retry = []
+    print(data["filter"])
+    print(data["timestamp"])
+    data["files"].extend(retry)
+    retry = []
 
-        withErrors = False
-        for item in data["files"]:
-            filePath = serviceprefix
-            if folder != "":
-                item = '/' + item
-            filePath = filePath + folder + item
+    withErrors = False
+    for item in data["files"]:
+        filePath = serviceprefix
+        if folder != "":
+            item = '/' + item
+        filePath = filePath + folder + item
 
-            print(filePath)
-            try:
-                decodeddata = getFile(filePath, since)
+        print(filePath)
+        #try:
+        decodeddata = getFile(filePath, since)
 
-                urllib.request.urlopen('http://' + logstash + ':8080/' + logstashpath + item, data=decodeddata.encode())
-            except ValueError as err:
-                print(err.args)
-                retry.append(item)
-                withErrors = True
+        urllib.request.urlopen('http://' + logstash + ':8080/' + logstashpath + item, data=decodeddata.encode())
+        #except ValueError as err:
+        #    print(err.args)
+        #    retry.append(item)
+        #    withErrors = True
 
-        cache['since'] = data["timestamp"]
-    except Exception as err:
-        print(err)
-        withErrors = True
+    cache['since'] = data["timestamp"]
+    #except Exception as err:
+    #    print(err)
+    #    withErrors = True
 
     if withErrors:
       	print("That wasn\'t perfect...")
