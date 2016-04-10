@@ -9,6 +9,7 @@ import time
 import os
 from hashlib import md5
 
+logstashpath = os.environ['DEST_PATH']
 serviceprefix = os.environ['SRV_PREFIX']
 service = "modifiedsince.aspx?f=%s&e=%s&d=%s"
 expression = os.environ['SRV_FILTER']
@@ -90,14 +91,14 @@ while True:
         for item in data["files"]:
             filePath = serviceprefix
             if folder != "":
-                filePath = filePath + folder + '/'
-            filePath = filePath + item
+                item = '/' + item
+            filePath = filePath + folder + item
 
             print(filePath)
             try:
                 decodeddata = getFile(filePath, since)
 
-                urllib.request.urlopen('http://' + logstash + ':8080', data=decodeddata.encode())
+                urllib.request.urlopen('http://' + logstash + ':8080/' + logstashpath + item, data=decodeddata.encode())
             except ValueError as err:
                 print(err.args)
                 retry.append(item)
